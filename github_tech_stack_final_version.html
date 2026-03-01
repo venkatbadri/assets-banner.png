@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tech Stack Bubble Ecosystem - Light Mode</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            /* Changed to light theme colors */
+            --bg-color: #ffffff; 
+            --text-color: #24292f;
+            --border-color: #d0d7de;
+            --footer-bg: #f6f8fa;
+            --accent-blue: #0969da;
+            --github-green: #1a7f37;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            color: var(--text-color);
+        }
+        #chart-container {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        svg { width: 100%; height: 100%; cursor: grab; }
+        svg:active { cursor: grabbing; }
+        
+        .node { cursor: pointer; }
+        .node circle { 
+            transition: filter 0.2s, stroke 0.2s; 
+            stroke: rgba(0,0,0,0.05); /* Added subtle border to bubbles */
+            stroke-width: 1px;
+        }
+        .node:hover circle { filter: brightness(0.95); }
+        
+        .label {
+            font-size: 13px;
+            font-weight: 800;
+            text-anchor: middle;
+            pointer-events: none;
+            fill: #ffffff; /* Keep text white inside colored bubbles */
+            paint-order: stroke;
+            stroke: rgba(0,0,0,0.2);
+            stroke-width: 1px;
+        }
+
+        /* Interactive Footer - Light Version */
+        #details-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--footer-bg);
+            padding: 25px 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 1000;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.1);
+            border-top: 1px solid var(--border-color);
+        }
+        #details-footer.active { transform: translateY(0); }
+        .footer-content h4 { margin: 0 0 4px 0; font-size: 11px; color: #57606a; text-transform: uppercase; letter-spacing: 2px; }
+        .footer-content h2 { margin: 0; font-size: 28px; color: var(--accent-blue); }
+        .footer-content p { margin: 10px 0 0 0; font-size: 16px; color: var(--text-color); max-width: 650px; line-height: 1.5; }
+        
+        .repo-btn {
+            background: var(--github-green);
+            color: #fff;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+        .btn {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            padding: 8px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--text-color);
+            font-weight: 600;
+            box-shadow: 0 1px 0 rgba(27,31,35,0.04);
+        }
+        .btn:hover { background: #f3f4f6; }
+    </style>
+</head>
+<body>
+
+    <div id="chart-container">
+        <div class="controls">
+            <button class="btn" id="zoom-in">+</button>
+            <button class="btn" id="zoom-out">−</button>
+            <button class="btn" id="reset">Reset View</button>
+        </div>
+        
+        <div id="details-footer">
+            <div class="footer-content">
+                <h4 id="category-name">Category</h4>
+                <h2 id="tool-name">Tool Name</h2>
+                <p id="tool-desc">Description will appear here.</p>
+            </div>
+            <a id="repo-link" href="#" target="_blank" class="repo-btn">View Code ↗</a>
+        </div>
+    </div>
+
+    <script>
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        // Group colors updated slightly for better contrast on white
+        const groups = {
+            "Databases": { x: width * 0.25, y: height * 0.2, color: "#2da44e" },
+            "DevOps & Cloud": { x: width * 0.65, y: height * 0.25, color: "#218bff" },
+            "AI & Data": { x: width * 0.35, y: height * 0.5, color: "#f0883e" },
+            "Web & Backend": { x: width * 0.75, y: height * 0.55, color: "#24292f" },
+            "Tools": { x: width * 0.2, y: height * 0.8, color: "#6e7781" },
+            "Languages & Core": { x: width * 0.6, y: height * 0.8, color: "#0969da" }
+        };
+
+        const data = [
+            { id: "MongoDB", group: "Databases", value: 50, desc: "Document-based database design." },
+            { id: "MySQL", group: "Databases", value: 45, desc: "Relational database management." },
+            { id: "PostgreSQL", group: "Databases", value: 45, desc: "Advanced relational schema design." },
+            { id: "AWS", group: "DevOps & Cloud", value: 55, desc: "Deploying ML and backend services." },
+            { id: "Docker", group: "DevOps & Cloud", value: 50, desc: "ML service containerization." },
+            { id: "Kubernetes", group: "DevOps & Cloud", value: 55, desc: "ML service orchestration." },
+            { id: "OpenCV", group: "AI & Data", value: 42, desc: "Computer vision driven logic." },
+            { id: "Scikit-Learn", group: "AI & Data", value: 42, desc: "Machine learning algorithms." },
+            { id: "TensorFlow", group: "AI & Data", value: 55, desc: "Deep learning model design." },
+            { id: "PyTorch", group: "AI & Data", value: 55, desc: "Deep learning research and deployment." },
+            { id: "Pandas", group: "AI & Data", value: 50, desc: "Data manipulation and analysis." },
+            { id: "HTML5/CSS3", group: "Web & Backend", value: 40, desc: "Front-end structure and styling." },
+            { id: "Django", group: "Web & Backend", value: 52, desc: "Building robust RESTful APIs." },
+            { id: "FastAPI", group: "Web & Backend", value: 48, desc: "High-performance API development." },
+            { id: "Flask", group: "Web & Backend", value: 45, desc: "Lightweight web service prototyping." },
+            { id: "Git/GitHub", group: "Tools", value: 48, desc: "Collaboration and version control." },
+            { id: "Linux", group: "Tools", value: 45, desc: "Primary development environment." },
+            { id: "Postman", group: "Tools", value: 40, desc: "API testing and documentation." },
+            { id: "Python", group: "Languages & Core", value: 65, desc: "Main language for Data Science and ML." },
+            { id: "Java", group: "Languages & Core", value: 55, desc: "Systems-level components." },
+            { id: "C++", group: "Languages & Core", value: 55, desc: "Performance-sensitive components." }
+        ];
+
+        const svg = d3.select("#chart-container").append("svg")
+            .attr("viewBox", [0, 0, width, height]);
+
+        const g = svg.append("g");
+
+        const zoom = d3.zoom()
+            .scaleExtent([0.4, 3])
+            .on("zoom", (event) => g.attr("transform", event.transform));
+
+        svg.call(zoom);
+
+        const simulation = d3.forceSimulation(data)
+            .force("x", d3.forceX(d => groups[d.group].x).strength(0.2))
+            .force("y", d3.forceY(d => groups[d.group].y).strength(0.2))
+            .force("collide", d3.forceCollide().radius(d => d.value + 4).iterations(4))
+            .force("charge", d3.forceManyBody().strength(-30));
+
+        const node = g.selectAll(".node")
+            .data(data)
+            .enter().append("g")
+            .attr("class", "node")
+            .on("click", (event, d) => {
+                const footer = d3.select("#details-footer");
+                footer.classed("active", true);
+                d3.select("#category-name").text(d.group);
+                d3.select("#tool-name").text(d.id);
+                d3.select("#tool-desc").text(d.desc);
+                
+                d3.selectAll(".node circle").style("stroke", "rgba(0,0,0,0.1)").style("stroke-width", "1px");
+                d3.select(event.currentTarget).select("circle")
+                    .style("stroke", "var(--accent-blue)")
+                    .style("stroke-width", "3px");
+                
+                event.stopPropagation();
+            });
+
+        node.append("circle")
+            .attr("r", d => d.value)
+            .attr("fill", d => groups[d.group].color);
+
+        node.append("text")
+            .attr("class", "label")
+            .attr("dy", ".35em")
+            .text(d => d.id);
+
+        simulation.on("tick", () => {
+            node.attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+        d3.select("#zoom-in").on("click", () => svg.transition().call(zoom.scaleBy, 1.3));
+        d3.select("#zoom-out").on("click", () => svg.transition().call(zoom.scaleBy, 0.7));
+        d3.select("#reset").on("click", () => svg.transition().call(zoom.transform, d3.zoomIdentity));
+        
+        svg.on("click", () => {
+            d3.select("#details-footer").classed("active", false);
+            d3.selectAll(".node circle").style("stroke", "rgba(0,0,0,0.1)").style("stroke-width", "1px");
+        });
+
+    </script>
+</body>
+</html>
